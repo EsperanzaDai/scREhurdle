@@ -373,7 +373,7 @@ WaldBayesm <- function(x){
   est.hat <- matrix(mean(x), nrow = 1, ncol = 1)
   n <- length(x) #n = length(x) 
   x.var.est <- sum((x-est.hat[1])^2)/n #var(x)
-  Z <- est.hat/sqrt(x.var.est)) # Z score
+  Z <- est.hat/sqrt(x.var.est) # Z score
   p.vals.sing <- 2*ifelse(Z > 0, pnorm(Z, lower.tail = FALSE), pnorm(Z, lower.tail = TRUE))
   return(list(betaL1 = est.hat[1], betaL1.Z = Z[1], betaL1.pValue = p.vals.sing[1]))
 }
