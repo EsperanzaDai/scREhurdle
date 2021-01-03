@@ -142,6 +142,14 @@ scREhurdle <- function(Y, treatGroup, useCDR = TRUE, typeRE = "ind", subpop = NU
   pars <- switch(coefSamps,
                  "treatment" = c("beta_L1", "beta_C1"),
                  "all" = c("beta_L", "beta_C"))
+  
+  if(typeRE == "indm")
+  {
+    pars <- switch(coefSamps,
+                   "treatment" = c("beta_L1"),
+                   "all" = c("beta_L"))
+  }
+  
   addArgs <- list(...)
   prior.scale <- c(10, rep(2.5, ifelse(typeRE == "none",ncol(X)-1,ncol(X))))
   gene_data <- list(
@@ -200,9 +208,15 @@ scREhurdle <- function(Y, treatGroup, useCDR = TRUE, typeRE = "ind", subpop = NU
       cat("Running IRE Stan model... \n")
       mod <- stanmodels$IRE
     }else{
-      ## No random effects
-      cat("Running NRE Stan model... \n")
-      mod <- stanmodels$NRE
+      if(typeRE == "indm"){
+        ## No random effects
+        cat("Running modified IRE Stan model... \n")
+        mod <- stanmodels$IREm
+      }else{
+        ## No random effects
+        cat("Running NRE Stan model... \n")
+        mod <- stanmodels$NRE
+      }
     }
     fit <- do.call(rstan::vb,c(list(
       mod,
@@ -220,72 +234,114 @@ scREhurdle <- function(Y, treatGroup, useCDR = TRUE, typeRE = "ind", subpop = NU
   ########## Sampling & Data Analysis ##########
   fit.dat <- rstan::As.mcmc.list(fit)[[1]]
   geneNames <- rownames(Y)
-  
-  if(coefSamps == "treatment"){
-    betaL1.ind <- grep(pars[1], colnames(fit.dat))
-    betaC1.ind <- grep(pars[2], colnames(fit.dat))
-    betaL1.samp <- fit.dat[,betaL1.ind]
-    betaC1.samp <- fit.dat[,betaC1.ind]
-    gene.mat <- matrix(apply(fit.dat[,c(betaL1.ind,betaC1.ind)],2,mean),nrow=nrow(Y))
-    rownames(gene.mat) <- geneNames
-    colnames(gene.mat) <- c(paste0(colnames(X)[2],"_L"), paste0(colnames(X)[2],"_C"))
-    fit.red <- fit.dat[,-c(betaL1.ind,betaC1.ind)]
-  }else{
-    betaL.ind <- grep(pars[1], colnames(fit.dat))
-    betaC.ind <- grep(pars[2], colnames(fit.dat))
-    betaL1.samp <- fit.dat[,betaL.ind[(nrow(Y)+1):(2*nrow(Y))]]
-    betaC1.samp <- fit.dat[,betaC.ind[(nrow(Y)+1):(2*nrow(Y))]]
-    gene.mat <- matrix(apply(fit.dat[,c(betaL.ind,betaC.ind)],2,mean),nrow=nrow(Y))
-    rownames(gene.mat) <- geneNames
-    if(typeRE == "none"){
-      coefNames <- c(gsub("[()]", "", colnames(X)))
+  if(type != "indm")
+  {
+    if(coefSamps == "treatment"){
+      betaL1.ind <- grep(pars[1], colnames(fit.dat))
+      betaC1.ind <- grep(pars[2], colnames(fit.dat))
+      betaL1.samp <- fit.dat[,betaL1.ind]
+      betaC1.samp <- fit.dat[,betaC1.ind]
+      gene.mat <- matrix(apply(fit.dat[,c(betaL1.ind,betaC1.ind)],2,mean),nrow=nrow(Y))
+      rownames(gene.mat) <- geneNames
+      colnames(gene.mat) <- c(paste0(colnames(X)[2],"_L"), paste0(colnames(X)[2],"_C"))
+      fit.red <- fit.dat[,-c(betaL1.ind,betaC1.ind)]
     }else{
-      coefNames <- c(gsub("[()]", "", colnames(X)),"zeta")
-    }
-    colnames(gene.mat) <- c(paste0(coefNames,"_L"), paste0(coefNames,"_C"))
-    fit.red <- fit.dat[,-c(betaL.ind,betaC.ind)]
-  }
-  gene.mat <- data.frame(gene.mat)
-  treat.mat <- matrix(NA, nrow = nrow(Y), ncol = 9)
-  rownames(treat.mat) <- geneNames
-  colnames(treat.mat) <- c(paste0(colnames(X)[2],"_L"),"L.Z","L.pval", paste0(colnames(X)[2],"_C"), "C.Z", "C.pval", "chisq", "chisq.pval", "chisq.padj")
-  for(i in 1:nrow(Y)){
-    treat.mat[i,] <- unlist(WaldBayes(betaL1.samp[,i], betaC1.samp[,i]))
-  }
-  treat.mat[,9] <- p.adjust(treat.mat[,8], method = adjustMethod)
-  treat.mat <- data.frame(treat.mat)
-  
-  if(!is.null(parSamps)){
-    parEst <- apply(fit.red,2,mean)[-ncol(fit.red)]
-    if("gamma_t" %in% parSamps){
-      cell.mat$gamma_t <- J%*%matrix(parEst[grep("gamma_t",names(parEst))])
-      parEst <- parEst[-grep("gamma_t",names(parEst))]
-    }
-    if("omega_star" %in% parSamps){
-      cell.mat$omega_star <- parEst[grep("omega_star",names(parEst))]
-      parEst <- parEst[-grep("omega_star",names(parEst))]
-    }
-    if("omega" %in% parSamps){
-      cell.mat$omega <- parEst[grep("omega",names(parEst))]
-      parEst <- parEst[-grep("omega",names(parEst))]
-    }
-    if("phi" %in% parSamps){
-      gene.mat$phi <- parEst[grep("phi",names(parEst))]
-      parEst <- parEst[-grep("phi",names(parEst))]
-    }
-    if("sigma2" %in% parSamps){
-      if(length(grep("sigma2",names(parEst))) == 1){
-        names(parEst)[grep("sigma2",names(parEst))] <- "sigma2"
+      betaL.ind <- grep(pars[1], colnames(fit.dat))
+      betaC.ind <- grep(pars[2], colnames(fit.dat))
+      betaL1.samp <- fit.dat[,betaL.ind[(nrow(Y)+1):(2*nrow(Y))]]
+      betaC1.samp <- fit.dat[,betaC.ind[(nrow(Y)+1):(2*nrow(Y))]]
+      gene.mat <- matrix(apply(fit.dat[,c(betaL.ind,betaC.ind)],2,mean),nrow=nrow(Y))
+      rownames(gene.mat) <- geneNames
+      if(typeRE == "none"){
+        coefNames <- c(gsub("[()]", "", colnames(X)))
       }else{
-        names(parEst)[grep("sigma2",names(parEst))] <- c("sigma2_*","sigma2_0","sigma2_1")
+        coefNames <- c(gsub("[()]", "", colnames(X)),"zeta")
       }
+      colnames(gene.mat) <- c(paste0(coefNames,"_L"), paste0(coefNames,"_C"))
+      fit.red <- fit.dat[,-c(betaL.ind,betaC.ind)]
     }
-  }else{
-    parEst <- NULL
+    gene.mat <- data.frame(gene.mat)
+    treat.mat <- matrix(NA, nrow = nrow(Y), ncol = 9)
+    rownames(treat.mat) <- geneNames
+    colnames(treat.mat) <- c(paste0(colnames(X)[2],"_L"),"L.Z","L.pval", paste0(colnames(X)[2],"_C"), "C.Z", "C.pval", "chisq", "chisq.pval", "chisq.padj")
+    for(i in 1:nrow(Y)){
+      treat.mat[i,] <- unlist(WaldBayes(betaL1.samp[,i], betaC1.samp[,i]))
+    }
+    treat.mat[,9] <- p.adjust(treat.mat[,8], method = adjustMethod)
+    treat.mat <- data.frame(treat.mat)
+    
+    if(!is.null(parSamps)){
+      parEst <- apply(fit.red,2,mean)[-ncol(fit.red)]
+      if("gamma_t" %in% parSamps){
+        cell.mat$gamma_t <- J%*%matrix(parEst[grep("gamma_t",names(parEst))])
+        parEst <- parEst[-grep("gamma_t",names(parEst))]
+      }
+      if("omega_star" %in% parSamps){
+        cell.mat$omega_star <- parEst[grep("omega_star",names(parEst))]
+        parEst <- parEst[-grep("omega_star",names(parEst))]
+      }
+      if("omega" %in% parSamps){
+        cell.mat$omega <- parEst[grep("omega",names(parEst))]
+        parEst <- parEst[-grep("omega",names(parEst))]
+      }
+      if("phi" %in% parSamps){
+        gene.mat$phi <- parEst[grep("phi",names(parEst))]
+        parEst <- parEst[-grep("phi",names(parEst))]
+      }
+      if("sigma2" %in% parSamps){
+        if(length(grep("sigma2",names(parEst))) == 1){
+          names(parEst)[grep("sigma2",names(parEst))] <- "sigma2"
+        }else{
+          names(parEst)[grep("sigma2",names(parEst))] <- c("sigma2_*","sigma2_0","sigma2_1")
+        }
+      }
+    }else{
+      parEst <- NULL
+    }
+    res <- list(stanFit = fit, inputData = gene_data, deTab = treat.mat, geneTab = gene.mat, cellTab = cell.mat, hyperEst = parEst)
+    class(res) <- "scREhurdle.fit"
+    return(res)
   }
-  res <- list(stanFit = fit, inputData = gene_data, deTab = treat.mat, geneTab = gene.mat, cellTab = cell.mat, hyperEst = parEst)
-  class(res) <- "scREhurdle.fit"
-  return(res)
+  
+  if(type == "indm")
+  {
+    if(coefSamps == "treatment"){
+      betaL1.ind <- grep(pars[1], colnames(fit.dat))
+      betaL1.samp <- fit.dat[,betaL1.ind]
+      gene.mat <- matrix(apply(fit.dat[,c(betaL1.ind)],2,mean),nrow=nrow(Y))
+      rownames(gene.mat) <- geneNames
+      colnames(gene.mat) <- c(paste0(colnames(X)[2],"_L"))
+      fit.red <- fit.dat[,-c(betaL1.ind)]
+    }else{
+      betaL.ind <- grep(pars[1], colnames(fit.dat))
+      betaL1.samp <- fit.dat[,betaL.ind[(nrow(Y)+1):(2*nrow(Y))]]
+      gene.mat <- matrix(apply(fit.dat[,c(betaL.ind)],2,mean),nrow=nrow(Y))
+      rownames(gene.mat) <- geneNames
+      if(typeRE == "none"){
+        coefNames <- c(gsub("[()]", "", colnames(X)))
+      }else{
+        coefNames <- c(gsub("[()]", "", colnames(X)),"zeta")
+      }
+      colnames(gene.mat) <- c(paste0(coefNames,"_L"))
+      fit.red <- fit.dat[,-c(betaL.ind)]
+    }
+    gene.mat <- data.frame(gene.mat)
+    treat.mat <- matrix(NA, nrow = nrow(Y), ncol = 3)
+    rownames(treat.mat) <- geneNames
+    colnames(treat.mat) <- c(paste0(colnames(X)[2],"_L"),"L.Z","L.pval")
+    for(i in 1:nrow(Y)){
+      treat.mat[i,] <- unlist(WaldBayesm(betaL1.samp[,i]))
+    }
+    treat.mat[,"L.pval.adj"] <- p.adjust(treat.mat[,3], method = adjustMethod)
+    treat.mat <- data.frame(treat.mat)
+    
+    parEst <- NULL
+    }
+    res <- list(stanFit = fit, inputData = gene_data, deTab = treat.mat, geneTab = gene.mat, cellTab = cell.mat, hyperEst = parEst)
+    class(res) <- "scREhurdle.fit"
+    return(res)
+  }
+  
 }
 
 #' Two-dimensional Wald statistic
@@ -311,6 +367,15 @@ WaldBayes <- function(x,y){
   return(list(betaL1 = est.hat[1], betaL1.Z = Z[1], betaL1.pValue = p.vals.sing[1], 
               betaC1 = est.hat[2], betaC1.Z = Z[2], betaC1.pValue = p.vals.sing[2], 
               Chi2.stat = Chi.stat, Chi2.pValue = p.val.comb, adj.Chi2.pValue = NA))
+}
+
+WaldBayesm <- function(x){
+  est.hat <- matrix(mean(x), nrow = 1, ncol = 1)
+  n <- length(x) #n = length(x) 
+  x.var.est <- sum((x-est.hat[1])^2)/n #var(x)
+  Z <- est.hat/sqrt(x.var.est)) # Z score
+  p.vals.sing <- 2*ifelse(Z > 0, pnorm(Z, lower.tail = FALSE), pnorm(Z, lower.tail = TRUE))
+  return(list(betaL1 = est.hat[1], betaL1.Z = Z[1], betaL1.pValue = p.vals.sing[1]))
 }
 
 
