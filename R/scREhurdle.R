@@ -336,7 +336,7 @@ scREhurdle <- function(Y, treatGroup, useCDR = TRUE, typeRE = "ind", subpop = NU
     treat.mat <- data.frame(treat.mat)
     
     parEst <- NULL
-    }
+    
     res <- list(stanFit = fit, inputData = gene_data, deTab = treat.mat, geneTab = gene.mat, cellTab = cell.mat, hyperEst = parEst)
     class(res) <- "scREhurdle.fit"
     return(res)
