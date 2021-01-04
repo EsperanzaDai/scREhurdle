@@ -80,7 +80,7 @@ scREhurdle <- function(Y, treatGroup, useCDR = TRUE, typeRE = "ind", subpop = NU
                      coefSamps = c("treatment", "all"), parSamps = NULL, adjustMethod = "BH",
                      adapt_engaged = FALSE, tol = 1e-4, eta = 0.2, output_samples = 1000, stan_seed = 123, ...){
   
-  typeRE <- match.arg(typeRE, c("none","ind","corr"))
+  typeRE <- match.arg(typeRE, c("none","ind","indm","corr"))
   if(!is.null(parSamps)){
     parSamps <- match.arg(parSamps, c("omega", "phi", "lambda1", "lambda2", "omega_star", "gamma_t", "sigma2"), 
                           several.ok = TRUE)
