@@ -332,7 +332,6 @@ scREhurdle <- function(Y, treatGroup, useCDR = TRUE, typeRE = "ind", subpop = NU
     for(i in 1:nrow(Y)){
       treat.mat[i,] <- unlist(WaldBayesm(betaL1.samp[,i]))
     }
-    treat.mat[,"L.pval.adj"] <- p.adjust(treat.mat[,3], method = adjustMethod)
     treat.mat <- data.frame(treat.mat)
 
     parEst <- NULL
