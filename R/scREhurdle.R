@@ -80,7 +80,7 @@ scREhurdle <- function(Y, treatGroup, useCDR = TRUE, typeRE = "ind", subpop = NU
                      coefSamps = c("treatment", "all"), parSamps = NULL, adjustMethod = "BH",
                      adapt_engaged = FALSE, tol = 1e-4, eta = 0.2, output_samples = 1000, stan_seed = 123, ...){
 
-  typeRE <- match.arg(typeRE, c("none","ind","indm","corr"))
+  typeRE <- match.arg(typeRE, c("none","nonem","ind","indm","corr"))
   if(!is.null(parSamps)){
     parSamps <- match.arg(parSamps, c("omega", "phi", "lambda1", "lambda2", "omega_star", "gamma_t", "sigma2"),
                           several.ok = TRUE)
@@ -143,7 +143,7 @@ scREhurdle <- function(Y, treatGroup, useCDR = TRUE, typeRE = "ind", subpop = NU
                  "treatment" = c("beta_L1", "beta_C1"),
                  "all" = c("beta_L", "beta_C"))
 
-  if(typeRE == "indm")
+  if(typeRE == "indm" | typeRE == "nonem")
   {
     pars <- switch(coefSamps,
                    "treatment" = c("beta_L1"),
@@ -151,7 +151,10 @@ scREhurdle <- function(Y, treatGroup, useCDR = TRUE, typeRE = "ind", subpop = NU
   }
 
   addArgs <- list(...)
-  prior.scale <- c(10, rep(2.5, ifelse(typeRE == "none",ncol(X)-1,ncol(X))))
+
+  prior.scale <- c(10, rep(2.5, ifelse(typeRE == "none" | typeRE == "nonem",
+                                       ncol(X)-1,ncol(X))))
+
   gene_data <- list(
     G = G,
     N = N,
@@ -209,13 +212,19 @@ scREhurdle <- function(Y, treatGroup, useCDR = TRUE, typeRE = "ind", subpop = NU
       mod <- stanmodels$IRE
     }else{
       if(typeRE == "indm"){
-        ## No random effects
+        ## Independent random effects
         cat("Running modified IRE Stan model... \n")
         mod <- stanmodels$IREm
       }else{
-        ## No random effects
-        cat("Running NRE Stan model... \n")
-        mod <- stanmodels$NRE
+        if(typeRE == "nonem"){
+          ## No random effects
+          cat("Running modified NRE Stan model... \n")
+          mod <- stanmodels$NREm
+        }else{
+          ## No random effects
+          cat("Running NRE Stan model... \n")
+          mod <- stanmodels$NRE
+        }
       }
     }
     fit <- do.call(rstan::vb,c(list(
@@ -234,7 +243,7 @@ scREhurdle <- function(Y, treatGroup, useCDR = TRUE, typeRE = "ind", subpop = NU
   ########## Sampling & Data Analysis ##########
   fit.dat <- rstan::As.mcmc.list(fit)[[1]]
   geneNames <- rownames(Y)
-  if(typeRE != "indm")
+  if(typeRE != "indm" & typeRE != "nonem")
   {
     if(coefSamps == "treatment"){
       betaL1.ind <- grep(pars[1], colnames(fit.dat))
@@ -303,7 +312,7 @@ scREhurdle <- function(Y, treatGroup, useCDR = TRUE, typeRE = "ind", subpop = NU
     return(res)
   }
 
-  if(typeRE == "indm")
+  if(typeRE == "indm" | typeRE == "nonem")
   {
     if(coefSamps == "treatment"){
       betaL1.ind <- grep(pars[1], colnames(fit.dat))
@@ -317,7 +326,7 @@ scREhurdle <- function(Y, treatGroup, useCDR = TRUE, typeRE = "ind", subpop = NU
       betaL1.samp <- fit.dat[,betaL.ind[(nrow(Y)+1):(2*nrow(Y))]]
       gene.mat <- matrix(apply(fit.dat[,c(betaL.ind)],2,mean),nrow=nrow(Y))
       rownames(gene.mat) <- geneNames
-      if(typeRE == "none"){
+      if(typeRE == "nonem"){
         coefNames <- c(gsub("[()]", "", colnames(X)))
       }else{
         coefNames <- c(gsub("[()]", "", colnames(X)),"zeta")
