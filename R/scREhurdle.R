@@ -158,7 +158,7 @@ scREhurdle <- function(Y, treatGroup, useCDR = TRUE, typeRE = "ind", subpop = NU
   gene_data <- list(
     G = G,
     N = N,
-    M = ifelse(typeRE == "none",ncol(X),ncol(X)+1),
+    M = ifelse(typeRE == "none" | typeRE == "nonem",ncol(X),ncol(X)+1),
     y = Y,
     X = X,
     prior_s = prior.scale)

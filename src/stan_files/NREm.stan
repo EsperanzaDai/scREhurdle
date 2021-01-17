@@ -8,7 +8,7 @@ data {
 }// end data
 
 parameters {
-  matrix[M,G] beta_L;           // logistic betas       
+  matrix[M,G] beta_L;           // logistic beta       
 }// end parameters
 
 model {
